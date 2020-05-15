@@ -74,31 +74,31 @@ public:
 	void pubCameraInfo()
 	{
 		static bool instrinsics_parsed = false;
-		if (instrinsics_parsed)
-			goto PublishCameraInfo;
+		if (!instrinsics_parsed)
+		{
 		
-		for (int row = 0; row < 3; row++)
-			for (int col = 0; col < 3; col++)
-				camera_info_msg_.K[row * 3 + col] = camera_instrinsics_.at<double>(row, col);
+			for (int row = 0; row < 3; row++)
+				for (int col = 0; col < 3; col++)
+					camera_info_msg_.K[row * 3 + col] = camera_instrinsics_.at<double>(row, col);
 
-		for (int row = 0; row < 3; row++)
-			for (int col = 0; col < 4; col++)
-			{
-				if (col == 3)
-					camera_info_msg_.P[row * 4 + col] = 0.0f;
-				else
-					camera_info_msg_.P[row * 4 + col] = camera_instrinsics_.at<double>(row, col);
-			}
-		for (int row = 0; row < distortion_coefficients_.rows; row++)
-			for (int col = 0; col < distortion_coefficients_.cols; col++)
-				camera_info_msg_.D.push_back(distortion_coefficients_.at<double>(row, col));
-		camera_info_msg_.distortion_model = distModel_;
-		camera_info_msg_.height = imgSize_.height;
-		camera_info_msg_.width = imgSize_.width;
-		instrinsics_parsed = true;
-		camera_info_msg_.header.frame_id = "camera";
+			for (int row = 0; row < 3; row++)
+				for (int col = 0; col < 4; col++)
+				{
+					if (col == 3)
+						camera_info_msg_.P[row * 4 + col] = 0.0f;
+					else
+						camera_info_msg_.P[row * 4 + col] = camera_instrinsics_.at<double>(row, col);
+				}
+			for (int row = 0; row < distortion_coefficients_.rows; row++)
+				for (int col = 0; col < distortion_coefficients_.cols; col++)
+					camera_info_msg_.D.push_back(distortion_coefficients_.at<double>(row, col));
+			camera_info_msg_.distortion_model = distModel_;
+			camera_info_msg_.height = imgSize_.height;
+			camera_info_msg_.width = imgSize_.width;
+			instrinsics_parsed = true;
+			camera_info_msg_.header.frame_id = "camera";
+		}
 	
-	PublishCameraInfo:
 		camera_info_msg_.header.stamp = ros::Time::now();
 		camera_info_pub_.publish(camera_info_msg_);
 	}

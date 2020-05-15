@@ -4,7 +4,7 @@
 #include "opencv2/imgproc/imgproc.hpp"
 #include "opencv2/calib3d/calib3d.hpp"
 #include <cv_bridge/cv_bridge.h>
-#include "sensor_msgs/CameraInfo.h"
+#include <sensor_msgs/CameraInfo.h>
 #include "opencv2/imgproc/detail/distortion_model.hpp"
 
 #define _NODE_NAME_ "image_publisher"
@@ -19,11 +19,10 @@ public:
 	ImageTalker()
 	{
 	}
-	void init(ros::NodeHandle& nh, ros::NodeHandle& nh_private,int cameraId)
+	void init()
 	{
-		camera_id_ = cameraId;
-		
-		image_transport::ImageTransport it(nh);
+		ros::NodeHandle nh;
+		ros::NodeHandle nh_private("~");
 		
 		std::string calibration_file_path;
 		nh_private.param<std::string>("calibration_file_path",calibration_file_path,"");
@@ -32,7 +31,8 @@ public:
 		nh_private.param<bool>("is_show_image",is_show_image_,false);
 		nh_private.param<int>("frame_rate",frame_rate_,30);
 		nh_private.param<float>("image_scale", imageScale_, 1.0);
-		
+		nh_private.param<int>("camera_id", cameraId_,0);
+		ROS_INFO("[%s] camera id: %d", _NODE_NAME_, cameraId_);
 		
 		if(!ros::param::get("~image_resolution",imageResolution_))
 		{
@@ -42,7 +42,8 @@ public:
 		ROS_INFO("image size: %d*%d",imageResolution_[0],imageResolution_[1]);
 	
 		ROS_INFO("%s",calibration_file_path.c_str());
-	
+		
+		image_transport::ImageTransport it(nh);
 		if(!Loadintrinsics(calibration_file_path))
 		{
 			pub_ = it.advertise("/image_raw", 1);
@@ -54,12 +55,12 @@ public:
 			new_camera_instrinsics_ = getOptimalNewCameraMatrix(camera_instrinsics_,distortion_coefficients_,imgSize_,0.0);
 			is_rectify_ = true;
 		}
-		//camera_info_pub_ = nh.advertise<sensor_msgs::CameraInfo>("/camera_info", 1);
+		return true;
 	}
 	
 	void run()
 	{
-		cv::VideoCapture cap(camera_id_);
+		cv::VideoCapture cap(cameraId_);
 		
 		if(!cap.isOpened())
 		{
@@ -76,17 +77,26 @@ public:
 		
 		ROS_INFO("cv set camera size is: %d*%d",w,h);
 		
-		cv::Mat frame,src;
-		sensor_msgs::ImagePtr msg;
-		cv::Size target_size(int(imageResolution_[0]*imageScale_), int(imageResolution_[1]*imageScale_));
+		if(imgSize_.width != w || imgSize_.height != h)
+		{
+			ROS_ERROR("[%s] The camera resolution dont match the size in calibration file!", _NODE_NAME_);
+			return;
+		}
 		
-		ros::Rate loop_rate(frame_rate_);
+		frame_rate_ = cap.get(CV_CAP_PROP_FPS);
+		ROS_INFO("cv set camera frame rate is: %d",frame_rate_);
+		
+		cv::Size target_size(int(w*imageScale_), int(h*imageScale_));
 		
 		if(is_show_image_)
 		{
 			if(is_rectify_) cv::namedWindow(_RECTIFIED_WINDOW_, cv::WINDOW_NORMAL);
 			else cv::namedWindow(_RAW_WINDOW_, cv::WINDOW_NORMAL);
 		}
+		
+		cv::Mat frame,src;
+		sensor_msgs::ImagePtr msg;
+		ros::Rate loop_rate(frame_rate_);
 		
 		while (ros::ok())
 		{
@@ -155,24 +165,24 @@ public:
 			distortion_coefficients_.at<double>(col) = dis_tmp.at<double>(col);
 
 		fs.release();
+		
 		return true;
 	}
 
 private:
-	bool is_rectify_;
 	image_transport::Publisher pub_ ;
 	ros::Publisher camera_info_pub_;
-	ros::Timer timer_;
 	
 	cv::Mat new_camera_instrinsics_;
 	cv::Mat camera_instrinsics_;
 	cv::Mat distortion_coefficients_;
 	std::string distModel_;
-	sensor_msgs::CameraInfo camera_info_msg_;
+	
+	int cameraId_;
+	bool is_rectify_;
 	cv::Size imgSize_;
 	float imageScale_;
 	std::vector<int> imageResolution_;
-	int camera_id_;
 	int frame_rate_;
 	std::string frame_id_;
 	bool is_show_image_;
@@ -181,20 +191,10 @@ private:
 
 int main(int argc, char** argv)
 {
-	if(argc <2) 
-	{
-		ROS_ERROR("argv[1]: camera number is empty\n");
-		return 1;
-	}
-
 	ros::init(argc, argv, _NODE_NAME_);
-	ros::NodeHandle nh;
-	ros::NodeHandle nh_private("~");
-	
-	int camera_id = atoi(argv[1]);
 	
 	ImageTalker image_talker;
-	image_talker.init(nh,nh_private,camera_id);
+	image_talker.init();
 	image_talker.run();
 	return 0;
 }
