@@ -2,7 +2,7 @@
 
 <launch>
 
-	<node pkg="my_image_publisher" type="cameraInfo_node" name="cameraInfo_node" output="screen" >
+	<node pkg="my_image_publisher" type="publish_camera_info" name="publish_camera_info" output="screen" >
 		<param name ="calibration_file_path" value="$(find my_image_publisher)/calibration_file/1.yaml"/>
 	</node>
 

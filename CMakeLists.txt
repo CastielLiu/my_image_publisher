@@ -21,9 +21,9 @@ add_dependencies(my_image_publisher_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${c
 target_link_libraries(my_image_publisher_node ${catkin_LIBRARIES} ${OpenCV_LIBRARIES}
 )
 
-add_executable(cameraInfo_node  src/publish_cameraInfo.cpp)
-add_dependencies(cameraInfo_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-target_link_libraries(cameraInfo_node ${catkin_LIBRARIES} ${OpenCV_LIBRARIES})
+add_executable(publish_camera_info  src/publish_camera_info.cpp)
+add_dependencies(publish_camera_info ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries(publish_camera_info ${catkin_LIBRARIES} ${OpenCV_LIBRARIES})
 
 
 

@@ -19,7 +19,7 @@ public:
 	ImageTalker()
 	{
 	}
-	void init()
+	bool init()
 	{
 		ros::NodeHandle nh;
 		ros::NodeHandle nh_private("~");

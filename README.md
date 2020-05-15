@@ -45,3 +45,8 @@
 
 * **`calibration_file_path`** (string)
     摄像头内参文件路径
+
+#### Published Topics
+
+* **`/camera_info`** ([sensor_msgs/CameraInfo])
+    
