@@ -1,0 +1,18 @@
+<!-- -->
+
+<launch>
+
+	<arg name="camera_id" default="1"/>
+	<arg name="show" default="false" />
+	<arg name="file" default="1.yaml"/>
+
+	<node pkg="my_image_publisher" type="my_image_publisher_node" name="my_image_publisher_node" output="screen" args="$(arg camera_id)" >
+		<param name ="calibration_file_path" value="$(find my_image_publisher)/calibration_file/$(arg file)"/>
+		<param name ="frame_rate" value="30"/>
+		<param name="is_show_image" value="$(arg show)"/>
+		<rosparam param="image_resolution" > [640,480] </rosparam>
+		
+	</node>
+
+</launch>
+
