@@ -39,6 +39,8 @@
 * **`/image_rectified`** ([sensor_msgs/Image])
     摄像头内参文件正常载入时发布/image_rectified
 
+
+
 ### Node my_image_publisher_node
     摄像头图像获取和发布节点，
 #### Params
