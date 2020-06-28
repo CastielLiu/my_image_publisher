@@ -83,8 +83,8 @@ public:
 			return;
 		}
 		
-		frame_rate_ = cap.get(CV_CAP_PROP_FPS);
-		ROS_INFO("cv set camera frame rate is: %d",frame_rate_);
+		int frame_rate = cap.get(CV_CAP_PROP_FPS);
+		ROS_INFO("cv set camera frame rate is: %d",frame_rate);
 		
 		cv::Size target_size(int(w*imageScale_), int(h*imageScale_));
 		
