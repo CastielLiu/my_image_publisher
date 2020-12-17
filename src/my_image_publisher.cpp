@@ -98,6 +98,8 @@ public:
 		sensor_msgs::ImagePtr msg;
 		ros::Rate loop_rate(frame_rate_);
 		
+		int empty_image_series = 0;
+		
 		while (ros::ok())
 		{
 			cap >> frame;
@@ -107,6 +109,7 @@ public:
 
 			if(!frame.empty())
 			{
+				empty_image_series = 0;
 				if(is_rectify_)
 				{
 					cv::undistort(frame, src, camera_instrinsics_, distortion_coefficients_,new_camera_instrinsics_);
@@ -128,6 +131,14 @@ public:
 				}
 				msg->header.frame_id = frame_id_;
 				pub_.publish(msg);
+			}
+			else
+			{
+				if(++ empty_image_series > 5)
+				{
+					cap.release();
+					return;
+				}
 			}
 			
 			loop_rate.sleep();
