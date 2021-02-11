@@ -4,15 +4,18 @@
 
 	<arg name="camera_id" default="1"/>
 	<arg name="show" default="false" />
-	<arg name="file" default="1.yaml"/>
+	<arg name="calib_file" default="1.yaml"/>
 	<arg name="rate" default="30"/>
+	<arg name="video" default=""/>
 
 	<node pkg="my_image_publisher" type="my_image_publisher_node" name="my_image_publisher_node" output="screen" respawn="true">
 	
 		<param name="camera_id" value="$(arg camera_id)"/>
-		<param name ="calibration_file_path" value="$(find my_image_publisher)/calibration_file/$(arg file)"/>
+		<param name ="calibration_file_path" value="$(arg calib_file)"/>
 		<param name ="frame_rate" value="$(arg rate)"/>
 		<param name="is_show_image" value="$(arg show)"/>
+		<param name="video_file" value="$(arg video)"/>
+		
 		<rosparam param="image_resolution" > [640,480] </rosparam>
 		
 	</node>

@@ -27,24 +27,32 @@ public:
 		std::string calibration_file_path;
 		nh_private.param<std::string>("calibration_file_path",calibration_file_path,"");
 		nh_private.param<std::string>("frame_id", frame_id_, "camera");
+		nh_private.param<std::string>("video_file", video_file_, "");
 		
 		nh_private.param<bool>("is_show_image",is_show_image_,false);
 		nh_private.param<int>("frame_rate",frame_rate_,30);
 		nh_private.param<float>("image_scale", imageScale_, 1.0);
 		nh_private.param<int>("camera_id", cameraId_,0);
-		ROS_INFO("[%s] camera id: %d", _NODE_NAME_, cameraId_);
 		
-		if(!ros::param::get("~image_resolution",imageResolution_))
+		if(video_file_.empty()) 
 		{
-			imageResolution_[0] = 640;
-			imageResolution_[1] = 480;
+		    ROS_INFO("[%s] camera id: %d", _NODE_NAME_, cameraId_);
+		    if(!ros::param::get("~image_resolution",imageResolution_))
+		    {
+			    imageResolution_[0] = 640;
+			    imageResolution_[1] = 480;
+		    }
+		    ROS_INFO("image size: %d*%d",imageResolution_[0],imageResolution_[1]);
 		}
-		ROS_INFO("image size: %d*%d",imageResolution_[0],imageResolution_[1]);
+		else
+		{
+		    ROS_INFO("video: %s", video_file_.c_str());
+		}
 	
-		ROS_INFO("%s",calibration_file_path.c_str());
+		ROS_INFO("calibration_file: %s",calibration_file_path.c_str());
 		
 		image_transport::ImageTransport it(nh);
-		if(!Loadintrinsics(calibration_file_path))
+		if(!loadintrinsics(calibration_file_path))
 		{
 			pub_ = it.advertise("/image_raw", 1);
 			is_rectify_ = false;
@@ -55,36 +63,53 @@ public:
 			new_camera_instrinsics_ = getOptimalNewCameraMatrix(camera_instrinsics_,distortion_coefficients_,imgSize_,0.0);
 			is_rectify_ = true;
 		}
+		
+		camera_info_pub_ = nh.advertise<sensor_msgs::CameraInfo>("/camera_info", 10, true);
+		ros::Duration(0.5).sleep();
+		
+		ROS_INFO("my_image_publisher initial ok.");
 		return true;
 	}
 	
 	void run()
 	{
-		cv::VideoCapture cap(cameraId_);
+		cv::VideoCapture cap;
+		if(video_file_.empty())
+		    cap.open(cameraId_);
+		else
+		    cap.open(video_file_);
 		
 		if(!cap.isOpened())
 		{
-			ROS_ERROR("can not open video device\n");
+			ROS_ERROR("Can not open video device\n");
 			return;
 		}
+		else if(video_file_.empty())
+		    ROS_INFO("Open camera device %d ok.", cameraId_);
+		else
+		    ROS_INFO("Open camera video %s ok.", video_file_.c_str());
 		
-		cap.set(CV_CAP_PROP_FPS, frame_rate_);
-		cap.set(CV_CAP_PROP_FRAME_WIDTH, imageResolution_[0]);
-		cap.set(CV_CAP_PROP_FRAME_HEIGHT, imageResolution_[1]);
+		
+		if(video_file_.empty())
+		{
+		    cap.set(CV_CAP_PROP_FPS, frame_rate_);
+		    cap.set(CV_CAP_PROP_FRAME_WIDTH, imageResolution_[0]);
+		    cap.set(CV_CAP_PROP_FRAME_HEIGHT, imageResolution_[1]);
+		}
 		
 		int w = cap.get(CV_CAP_PROP_FRAME_WIDTH);
 		int h = cap.get(CV_CAP_PROP_FRAME_HEIGHT);
 		
-		ROS_INFO("cv set camera size is: %d*%d",w,h);
+		ROS_INFO("image size is: %d*%d",w,h);
 		
 		if(imgSize_.width != w || imgSize_.height != h)
 		{
-			ROS_ERROR("[%s] The camera resolution dont match the size in calibration file!", _NODE_NAME_);
+			ROS_ERROR("[%s] The image resolution dont match the size in calibration file!", _NODE_NAME_);
 			return;
 		}
 		
 		int frame_rate = cap.get(CV_CAP_PROP_FPS);
-		ROS_INFO("cv set camera frame rate is: %d",frame_rate);
+		ROS_INFO("The image flow frame rate is: %d",frame_rate);
 		
 		cv::Size target_size(int(w*imageScale_), int(h*imageScale_));
 		
@@ -99,14 +124,14 @@ public:
 		ros::Rate loop_rate(frame_rate_);
 		
 		int empty_image_series = 0;
+	
+		publishCameraInfo(camera_instrinsics_, distortion_coefficients_, distModel_, imgSize_);
 		
 		while (ros::ok())
 		{
 			cap >> frame;
 			//cv::flip(src,frame,-1); //rotate 90deg
 			
-			//ROS_INFO("image size:%d*%d",frame.size[0],frame.size[1]);
-
 			if(!frame.empty())
 			{
 				empty_image_series = 0;
@@ -146,19 +171,19 @@ public:
 		}
 	}
 	
-	bool Loadintrinsics(const std::string &calibration_file_path)
+	bool loadintrinsics(const std::string &file_name)
 	{
-		if (calibration_file_path.empty())
+		if (file_name.empty())
 		{
 			ROS_INFO("[%s] missing calibration file path", _NODE_NAME_);
 			return false;
 		}
 
-		cv::FileStorage fs(calibration_file_path, cv::FileStorage::READ);
+		cv::FileStorage fs(file_name, cv::FileStorage::READ);
 
 		if (!fs.isOpened())
 		{
-			ROS_INFO("[%s] cannot open calibration file %s", _NODE_NAME_, calibration_file_path.c_str());
+			ROS_INFO("[%s] cannot open calibration file %s", _NODE_NAME_, file_name.c_str());
 	 		return false;
 		}
 
@@ -179,6 +204,40 @@ public:
 		
 		return true;
 	}
+	
+	void publishCameraInfo(const cv::Mat& instrinsics, const cv::Mat& dist, const std::string& dist_model, const cv::Size& img_size)
+	{
+		static bool instrinsics_parsed = false;
+		static sensor_msgs::CameraInfo camera_info;
+		if (!instrinsics_parsed)
+		{
+			for (int row = 0; row < 3; row++)
+				for (int col = 0; col < 3; col++)
+					camera_info.K[row * 3 + col] = instrinsics.at<double>(row, col);
+
+			for (int row = 0; row < 3; row++)
+				for (int col = 0; col < 4; col++)
+				{
+					if (col == 3)
+						camera_info.P[row * 4 + col] = 0.0f;
+					else
+						camera_info.P[row * 4 + col] = instrinsics.at<double>(row, col);
+				}
+			for (int row = 0; row < dist.rows; row++)
+				for (int col = 0; col < dist.cols; col++)
+					camera_info.D.push_back(dist.at<double>(row, col));
+					
+			camera_info.distortion_model = dist_model;
+			camera_info.height = img_size.height;
+			camera_info.width = img_size.width;
+			instrinsics_parsed = true;
+			camera_info.header.frame_id = "camera";
+		}
+	
+		camera_info.header.stamp = ros::Time::now();
+		camera_info_pub_.publish(camera_info);
+	}
+	
 
 private:
 	image_transport::Publisher pub_ ;
@@ -197,6 +256,7 @@ private:
 	int frame_rate_;
 	std::string frame_id_;
 	bool is_show_image_;
+	std::string video_file_;
 };
 
 
